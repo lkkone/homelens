@@ -19,7 +19,7 @@ const filtered = computed(() => {
 });
 const groups = computed(() => {
  const map = new Map();
- for (const d of data.value.devices) { const name=d.group||"家庭设备";if(!map.has(name))map.set(name,[]);map.get(name).push(d); }
+ for (const d of data.value.devices) { const name=d.group||"Appliances";if(!map.has(name))map.set(name,[]);map.get(name).push(d); }
  return [...map].map(([name,devices])=>({name,devices}));
 });
 const attention = computed(()=>data.value.routers.filter(r=>(r.state!=="healthy"||r.wan_state==="offline")).length+data.value.devices.filter(d=>d.visibility==="show"&&d.state==="offline"&&!d.allow_offline).length);
@@ -99,7 +99,7 @@ onUnmounted(()=>{clearInterval(timer);badge.dispose();window.removeEventListener
    </section>
    <section v-else-if="selected" class="editor panel">
     <div class="editor-heading"><h2>{{selected.name}}</h2><span class="state" :class="selected.state">{{labels[selected.state]}}</span></div>
-    <form @submit.prevent="save"><h3>显示信息</h3><div class="form-grid"><label>自定义名称<input v-model="deviceForm.name" :placeholder="selected.automatic_name||'留空自动获取'" maxlength="200"/></label><label>房间 / 分组<input v-model="deviceForm.group" placeholder="家庭设备" maxlength="200"/></label></div><label>备注<input v-model="deviceForm.notes" placeholder="仅在管理后台显示" maxlength="1000"/></label>
+    <form @submit.prevent="save"><h3>显示信息</h3><div class="form-grid"><label>自定义名称<input v-model="deviceForm.name" :placeholder="selected.automatic_name||'留空自动获取'" maxlength="200"/></label><label>房间 / 分组<input v-model="deviceForm.group" placeholder="Appliances" maxlength="200"/></label></div><label>备注<input v-model="deviceForm.notes" placeholder="仅在管理后台显示" maxlength="1000"/></label>
      <div class="home-display-settings"><label class="home-switch home-setting"><span>是否展示</span><input v-model="deviceForm.visibility" type="checkbox" role="switch" true-value="show" false-value="hide"/></label><label class="home-switch home-setting"><span>允许离线</span><input v-model="deviceForm.allow_offline" type="checkbox" role="switch"/></label></div>
      <h3>自动获取的信息</h3><dl class="home-device-detail"><div><dt>IP 地址</dt><dd>{{selected.ip||'—'}}</dd></div><div><dt>MAC 地址</dt><dd>{{selected.mac}}</dd></div><div><dt>设备品牌 / 型号</dt><dd>{{[selected.brand,selected.model].filter(Boolean).join(' · ')||'未识别'}}</dd></div><div><dt>连接方式</dt><dd>{{selected.connection||'—'}}</dd></div><div><dt>信号强度</dt><dd>{{selected.signal!=null?selected.signal+' dBm':'—'}}</dd></div><div><dt>接入节点</dt><dd>{{selected.ap||selected.router_name}}</dd></div><div><dt>累计上传</dt><dd>{{bytes(selected.sent_bytes)}}</dd></div><div><dt>累计下载</dt><dd>{{bytes(selected.received_bytes)}}</dd></div></dl>
      <p class="form-error" role="alert">{{error}}</p><div class="actions"><span></span><button class="btn primary" :disabled="busy">{{busy?'正在保存…':'保存'}}</button></div>

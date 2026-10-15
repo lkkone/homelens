@@ -138,6 +138,7 @@ class StorageTests(unittest.TestCase):
             self.sync(db, self.now)
             self.assertEqual(app.status(db)["devices"], [])
             self.assertEqual(len(app.status(db, True)["devices"]), 1)
+            self.assertEqual(app.status(db, True)["devices"][0]["group"], "Appliances")
             self.assertFalse(app.status(db, True)["devices"][0]["allow_offline"])
             db.execute("UPDATE devices SET visibility='show'")
             self.assertEqual(len(app.status(db)["devices"]), 1)
