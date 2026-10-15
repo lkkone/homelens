@@ -64,6 +64,7 @@ async function save(){
 const rate=n=>n==null?'—':n>=1e9?(n/1e9).toFixed(1)+' Gbps':n>=1e6?(n/1e6).toFixed(1)+' Mbps':n>=1e3?(n/1e3).toFixed(1)+' Kbps':Math.round(n)+' bps';
 const bytes=n=>n==null?'—':n>=1024**3?(n/1024**3).toFixed(1)+' GB':n>=1024**2?(n/1024**2).toFixed(1)+' MB':n>=1024?(n/1024).toFixed(1)+' KB':n+' B';
 const time=at=>at?new Date(at*1000).toLocaleString('zh-CN',{hour12:false}):'等待采集';
+const clockTime=at=>at?new Date(at*1000).toLocaleTimeString('zh-CN',{hour12:false}):'等待检测';
 function visibleRefresh(){if(!document.hidden)refresh();}
 onMounted(async()=>{if(admin){try{authenticated.value=(await api('/api/auth')).authenticated;}catch{}}
  await refresh();if(admin&&authenticated.value){if(!data.value.routers.length)tab.value='routers';select(filtered.value[0]);}
@@ -110,7 +111,7 @@ onUnmounted(()=>{clearInterval(timer);badge.dispose();window.removeEventListener
    <section class="overall panel" :class="attention?'slow':'healthy'"><span class="overall-icon">{{attention?'!':'✓'}}</span><h2>{{loading?'正在获取家庭状态…':!data.routers.length?'尚未接入路由器':attention?`${attention} 项家庭网络状态需要关注`:'家庭网络运行正常'}}</h2></section>
    <section v-if="!loading&&!data.routers.length" class="empty panel"><p>接入路由器后自动发现家庭设备。</p><a href="/admin">前往管理后台</a></section>
    <section v-for="r in data.routers" :key="r.id" class="home-network panel" :class="r.state"><div class="device-name-row"><span class="status-dot"></span><strong>{{r.name}}</strong><span class="tag">{{r.model||'等待识别'}}</span><small class="home-state">{{r.state!=='healthy'?labels[r.state]:r.wan_state==='offline'?'外网不可用':'外网正常'}}</small><small v-if="r.error" class="home-error">{{r.error}}</small></div>
-    <div class="home-network-values"><div><small>在线设备</small><strong>{{r.state==='healthy'?r.online_count:'—'}}<em> 台</em></strong></div><div><small>网络节点</small><strong>{{r.nodes?.length??'—'}}<em> 个</em></strong></div><div><small>当前上传</small><strong>{{r.state==='healthy'?rate(r.upload_bps):'—'}}</strong></div><div><small>当前下载</small><strong>{{r.state==='healthy'?rate(r.download_bps):'—'}}</strong></div></div>
+    <div class="home-network-values"><div><small>在线设备</small><strong>{{r.state==='healthy'?r.online_count:'—'}}<em> 台</em></strong></div><div><small>网络节点</small><strong>{{r.nodes?.length??'—'}}<em> 个</em></strong></div><div><small>已发现设备</small><strong>{{r.known_count}}<em> 台</em></strong></div><div><small>最近检测</small><strong :title="time(r.checked_at)">{{clockTime(r.checked_at)}}</strong></div></div>
     <div v-if="r.id===data.routers[0]?.id&&data.speedtest?.enabled" class="home-speedtest">
      <div class="home-speedtest-heading"><span>宽带测速 <small>每日 00:00 · {{data.speedtest.timezone}}</small></span><small>{{data.speedtest.state==='running'?'正在测速…':data.speedtest.state==='error'?`最近一次测速失败${data.speedtest.checked_at?' · 上次成功 '+time(data.speedtest.checked_at):''}`:data.speedtest.checked_at?time(data.speedtest.checked_at):'等待首次午夜测速'}}</small></div>
      <div class="home-speedtest-values"><div><small>下载速度</small><strong>{{rate(data.speedtest.download_bps)}}</strong></div><div><small>上传速度</small><strong>{{rate(data.speedtest.upload_bps)}}</strong></div><div><small>网络延迟</small><strong>{{data.speedtest.latency_ms!=null?data.speedtest.latency_ms.toFixed(1)+' ms':'—'}}</strong></div></div>
