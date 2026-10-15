@@ -116,7 +116,6 @@ class StorageTests(unittest.TestCase):
             public = app.status(db)
             self.assertEqual(public["devices"][0]["name"], "custom")
             self.assertEqual(public["routers"][0]["online_count"], 1)
-            self.assertEqual(public["routers"][0]["known_count"], 1)
             self.assertNotIn("secret", json.dumps(public))
             self.assertNotIn("private", json.dumps(public))
             self.assertEqual(len(public["devices"][0]["traffic"]), 1)

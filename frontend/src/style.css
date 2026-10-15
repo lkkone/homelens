@@ -1451,6 +1451,7 @@ dialog.security-dialog {
 .traffic-heading small { font-size: 10px; }
 .traffic-legend { display: flex; gap: 14px; }
 .traffic-legend span::before { content: ""; display: inline-block; width: 10px; height: 2px; background: currentColor; margin: 0 5px 3px 0; }
+.traffic-legend .traffic-down::before { height: 0; background: none; border-top: 2px dashed currentColor; }
 .traffic-up { color: var(--color-green); fill: var(--color-green); }
 .traffic-down { color: var(--color-green); fill: var(--color-green); opacity: .65; }
 .traffic-line.traffic-down { stroke-dasharray: 4 3; }

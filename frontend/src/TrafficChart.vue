@@ -1,6 +1,6 @@
 <script setup>
 import { computed } from 'vue';
-const props = defineProps({history:{type:Array,default:()=>[]}});
+const props = defineProps({history:{type:Array,default:()=>[]},uploadBps:{type:Number,default:null},downloadBps:{type:Number,default:null}});
 const points=computed(()=>props.history||[]);
 const rate=n=>n==null?'—':n>=1e6?(n/1e6).toFixed(1)+' Mbps':n>=1e3?(n/1e3).toFixed(1)+' Kbps':Math.round(n)+' bps';
 const time=at=>new Date(at*1000).toLocaleTimeString('zh-CN',{hour12:false});
@@ -13,7 +13,7 @@ function offlinePath(){let d='',previous;for(const p of points.value){if(p.state
 </script>
 <template>
  <div class="history traffic-chart">
-  <div class="traffic-heading"><div class="traffic-legend"><span class="traffic-up">上传</span><span class="traffic-down">下载</span></div><small>实时流量</small></div>
+  <div class="traffic-heading"><div class="traffic-legend"><span class="traffic-up">上传 {{rate(uploadBps)}}</span><span class="traffic-down">下载 {{rate(downloadBps)}}</span></div><small>实时流量</small></div>
   <svg v-if="points.length" viewBox="0 0 500 98" preserveAspectRatio="none" role="img" aria-label="最近两小时上传和下载速率曲线">
    <path class="traffic-grid" d="M12 14H488 M12 48H488 M12 82H488"/>
    <path class="traffic-line traffic-offline" :d="offlinePath()"/><path class="traffic-line traffic-up" :d="path('upload_bps')"/><path class="traffic-line traffic-down" :d="path('download_bps')"/>

@@ -288,7 +288,6 @@ def status(db, private=False):
         devices.append(device)
     counts = db.execute("SELECT data,router_id FROM devices").fetchall()
     for router in routers:
-        router["known_count"] = sum(r["router_id"] == router["id"] for r in counts)
         router["online_count"] = (
             sum(
                 r["router_id"] == router["id"]
