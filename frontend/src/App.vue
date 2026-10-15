@@ -84,7 +84,7 @@ onUnmounted(()=>{clearInterval(timer);badge.dispose();window.removeEventListener
    <aside class="device-sidebar panel"><div class="sidebar-inner">
     <div class="home-tabs" role="group" aria-label="管理类型"><button class="btn" :class="{primary:tab==='devices'}" @click="switchTab('devices')">设备管理</button><button class="btn" :class="{primary:tab==='routers'}" @click="switchTab('routers')">路由器接入</button></div>
     <input v-model="query" class="home-search" placeholder="搜索名称、IP、MAC" aria-label="搜索设备"/>
-    <label v-if="tab==='devices'" class="home-check"><input v-model="onlyOnline" type="checkbox"/>只看在线设备</label>
+    <label v-if="tab==='devices'" class="home-switch home-filter"><span>只看在线设备</span><input v-model="onlyOnline" type="checkbox" role="switch"/></label>
     <button v-if="tab==='routers'" class="btn add-device" @click="select(null)">＋ 添加路由器</button>
     <div class="sidebar-scroll"><button v-for="d in filtered" :key="d.id" class="sidebar-device" :class="[d.state,{selected:selectedId===d.id}]" @click="select(d)"><span class="status-dot"></span><span class="sidebar-name">{{d.name}}<small>{{labels[d.state]}}<template v-if="d.ip"> · {{d.ip}}</template></small></span></button><p v-if="!filtered.length" class="hint">{{loading?'正在获取…':'暂无匹配的设备'}}</p></div>
    </div></aside>
@@ -100,7 +100,7 @@ onUnmounted(()=>{clearInterval(timer);badge.dispose();window.removeEventListener
    <section v-else-if="selected" class="editor panel">
     <div class="editor-heading"><h2>{{selected.name}}</h2><span class="state" :class="selected.state">{{labels[selected.state]}}</span></div>
     <form @submit.prevent="save"><h3>显示信息</h3><div class="form-grid"><label>自定义名称<input v-model="deviceForm.name" :placeholder="selected.automatic_name||'留空自动获取'" maxlength="200"/></label><label>房间 / 分组<input v-model="deviceForm.group" placeholder="家庭设备" maxlength="200"/></label></div><label>备注<input v-model="deviceForm.notes" placeholder="仅在管理后台显示" maxlength="1000"/></label>
-     <div class="form-grid"><label>展示方式<select v-model="deviceForm.visibility"><option value="auto">自动 · 仅显示在线设备</option><option value="show">始终显示</option><option value="hide">隐藏</option></select></label><label class="home-check home-notify"><input v-model="deviceForm.notify_offline" type="checkbox"/>离线时提醒</label></div>
+     <div class="form-grid"><label>展示方式<select v-model="deviceForm.visibility"><option value="auto">自动 · 仅显示在线设备</option><option value="show">始终显示</option><option value="hide">隐藏</option></select></label><label class="home-switch home-notify"><span>离线时提醒</span><input v-model="deviceForm.notify_offline" type="checkbox" role="switch"/></label></div>
      <h3>自动获取的信息</h3><dl class="home-device-detail"><div><dt>IP 地址</dt><dd>{{selected.ip||'—'}}</dd></div><div><dt>MAC 地址</dt><dd>{{selected.mac}}</dd></div><div><dt>设备品牌 / 型号</dt><dd>{{[selected.brand,selected.model].filter(Boolean).join(' · ')||'未识别'}}</dd></div><div><dt>连接方式</dt><dd>{{selected.connection||'—'}}</dd></div><div><dt>信号强度</dt><dd>{{selected.signal!=null?selected.signal+' dBm':'—'}}</dd></div><div><dt>接入节点</dt><dd>{{selected.ap||selected.router_name}}</dd></div><div><dt>累计上传</dt><dd>{{bytes(selected.sent_bytes)}}</dd></div><div><dt>累计下载</dt><dd>{{bytes(selected.received_bytes)}}</dd></div></dl>
      <p class="form-error" role="alert">{{error}}</p><div class="actions"><span></span><button class="btn primary" :disabled="busy">{{busy?'正在保存…':'保存'}}</button></div>
     </form>

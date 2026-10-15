@@ -1382,9 +1382,7 @@ dialog.security-dialog {
 .home-tabs { display: flex; gap: 8px; margin-bottom: 14px; }
 .home-tabs .btn { flex: 1; padding: 8px 10px; font-size: 13px; }
 .home-search { width: 100%; margin-bottom: 8px; }
-.home-check { display: flex !important; align-items: center; gap: 8px; font-size: 13px; }
-.home-check input { width: 16px !important; height: 16px; margin: 0 !important; accent-color: var(--color-green); }
-.home-notify { padding-top: 24px; }
+
 .home-router-detail { margin-top: 24px; color: var(--color-muted); font-size: 13px; }
 .home-router-detail span { display: block; margin: 8px 0; overflow-wrap: anywhere; }
 .home-router-detail strong { font-weight: 500; color: var(--color-text); }
@@ -1419,10 +1417,10 @@ dialog.security-dialog {
  .home-network-values { grid-template-columns: repeat(2,minmax(0,1fr)); }
  .home-network-values strong { font-size: 19px; }
  .home-device-detail { gap: 14px; }
- .home-notify { padding-top: 0; }
+
 }
 
-.home-check { flex-direction: row; }
+
 .home-device .device-name-row { flex-wrap: wrap; }
 .home-device .history { grid-column: auto; grid-row: auto; }
 @media (max-width: 767px) {
@@ -1432,3 +1430,14 @@ dialog.security-dialog {
 @media (min-width: 768px) {
  .admin-layout > .device-sidebar { min-height: 420px; }
 }
+
+.home-switch { display: flex; flex-direction: row; align-items: center; justify-content: space-between; gap: 16px; cursor: pointer; font-size: 13px; font-weight: 500; }
+.home-filter { padding: 4px 10px 8px; margin: 0 0 10px; min-height: 38px; }
+.home-switch input { appearance: none; flex: 0 0 36px; width: 36px; height: 22px; min-height: 22px; margin: 0; padding: 3px; border: 0; border-radius: 999px; background: var(--color-gray); cursor: pointer; transition: background .15s; }
+.home-switch input::before { content: ""; display: block; width: 16px; height: 16px; border-radius: 50%; background: var(--color-white); box-shadow: 0 1px 3px var(--color-overlay); transition: transform .15s; }
+.home-switch input:checked { background: var(--color-green); }
+.home-switch input:checked::before { transform: translateX(14px); }
+.home-switch input:focus-visible { outline: 2px solid var(--color-green); outline-offset: 3px; }
+.editor .home-notify { margin-top: 25px; padding: 10px 12px; min-height: 44px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-bg); }
+@media (max-width: 767px) { .editor .home-notify { margin-top: 0; } }
+@media (prefers-reduced-motion: reduce) { .home-switch input, .home-switch input::before { transition: none; } }
