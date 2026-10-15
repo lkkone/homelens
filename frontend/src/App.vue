@@ -43,7 +43,12 @@ function select(d){
  if(tab.value==="routers")routerForm.value=d?{...routerBlank(),...d.config,name:d.custom_name||"",password:""}:routerBlank();
  else if(d)deviceForm.value={name:d.custom_name||"",group:d.custom_group||"",notes:d.notes||"",visibility:d.visibility,notify_offline:d.notify_offline};
 }
-function switchTab(value){tab.value=value;query.value="";select(null);}
+const previousSelection = {devices:null,routers:null};
+function switchTab(value){
+ previousSelection[tab.value]=selectedId.value;
+ tab.value=value;query.value="";
+ select(filtered.value.find(d=>d.id===previousSelection[value])||filtered.value[0]||null);
+}
 async function login(){busy.value=true;error.value="";try{await api('/api/login','POST',loginForm.value);loginForm.value.password="";authenticated.value=true;await refresh();if(!data.value.routers.length)tab.value='routers';select(filtered.value[0]);}catch(e){error.value=e.message;}finally{busy.value=false;}}
 async function logout(){await api('/api/logout','POST',{});authenticated.value=false;selectedId.value=null;routerForm.value=routerBlank();}
 async function save(){

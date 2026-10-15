@@ -1428,3 +1428,7 @@ dialog.security-dialog {
 @media (max-width: 767px) {
  .home-device > .history { grid-column: 1 / -1; grid-row: 2; }
 }
+
+@media (min-width: 768px) {
+ .admin-layout > .device-sidebar { min-height: 420px; }
+}
