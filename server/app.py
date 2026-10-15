@@ -16,6 +16,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import unquote, urlsplit
 
+import speedtest
 from adapters import ADAPTERS, BRANDS
 from adapters.zte import RouterAuthError, RouterBusy
 
@@ -27,7 +28,7 @@ if (ROOT / ".env").is_file():
             key, value = entry.split("=", 1)
             os.environ.setdefault(key.strip(), value.strip())
 DATA = Path(os.environ.get("DATA_DIR", str(ROOT / ".local/data")))
-WEB = Path(__file__).parent / "web"
+WEB = Path(os.environ.get("WEB_DIR", str(Path(__file__).parent / "web"))).resolve()
 USERNAME = os.environ.get("ADMIN_USERNAME", "")
 PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
 PUBLIC_URL = os.environ.get("PUBLIC_URL", "")
@@ -69,10 +70,32 @@ def init_db():
         CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS sessions(hash TEXT PRIMARY KEY,expires REAL NOT NULL);
         CREATE TABLE IF NOT EXISTS routers(id TEXT PRIMARY KEY,name TEXT NOT NULL,config TEXT NOT NULL,snapshot TEXT NOT NULL DEFAULT '{}',checked REAL,generation INTEGER NOT NULL DEFAULT 1);
-        CREATE TABLE IF NOT EXISTS devices(id TEXT PRIMARY KEY,router_id TEXT NOT NULL REFERENCES routers(id) ON DELETE CASCADE,mac TEXT NOT NULL,data TEXT NOT NULL,name TEXT NOT NULL DEFAULT '',group_name TEXT NOT NULL DEFAULT '',notes TEXT NOT NULL DEFAULT '',visibility TEXT NOT NULL DEFAULT 'auto',notify_offline INTEGER NOT NULL DEFAULT 0,updated REAL NOT NULL,UNIQUE(router_id,mac));
-        CREATE TABLE IF NOT EXISTS samples(device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,at REAL NOT NULL,state TEXT NOT NULL,PRIMARY KEY(device_id,at));
-        CREATE INDEX IF NOT EXISTS samples_time ON samples(device_id,at);
+        CREATE TABLE IF NOT EXISTS devices(id TEXT PRIMARY KEY,router_id TEXT NOT NULL REFERENCES routers(id) ON DELETE CASCADE,mac TEXT NOT NULL,data TEXT NOT NULL,name TEXT NOT NULL DEFAULT '',group_name TEXT NOT NULL DEFAULT '',notes TEXT NOT NULL DEFAULT '',visibility TEXT NOT NULL DEFAULT 'hide',notify_offline INTEGER NOT NULL DEFAULT 0,updated REAL NOT NULL,UNIQUE(router_id,mac));
+        CREATE TABLE IF NOT EXISTS traffic(device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,at REAL NOT NULL,upload_bps REAL,download_bps REAL,state TEXT NOT NULL DEFAULT 'healthy',PRIMARY KEY(device_id,at));
+        CREATE TABLE IF NOT EXISTS speedtests(day TEXT PRIMARY KEY,started REAL NOT NULL,finished REAL,state TEXT NOT NULL,result TEXT NOT NULL DEFAULT '{}');
         """)
+        if "state" not in {r["name"] for r in db.execute("PRAGMA table_info(traffic)")}:
+            db.execute(
+                "ALTER TABLE traffic ADD COLUMN state TEXT NOT NULL DEFAULT 'healthy'"
+            )
+        # Preserve the devices visible under the old automatic rule when moving
+        # to explicit switches. Previously hidden/offline devices stay hidden.
+        for device in db.execute(
+            "SELECT id,data,notify_offline FROM devices WHERE visibility='auto'"
+        ).fetchall():
+            was_visible = (
+                json.loads(device["data"]).get("state") == "healthy"
+                or bool(device["notify_offline"])
+            )
+            db.execute(
+                "UPDATE devices SET visibility=? WHERE id=?",
+                ("show" if was_visible else "hide", device["id"]),
+            )
+        # Keep legacy samples for rollback; the new chart reads traffic only.
+        db.execute(
+            "UPDATE speedtests SET state='error',finished=? WHERE state='running'",
+            (time.time(),),
+        )
         row = db.execute("SELECT value FROM settings WHERE key='account'").fetchone()
         old = json.loads(row["value"]) if row else {}
         if (
@@ -182,21 +205,24 @@ def sync(db, row, data, now):
             else str(uuid.uuid5(uuid.NAMESPACE_URL, row["id"] + address))
         )
         db.execute(
-            "INSERT INTO devices(id,router_id,mac,data,updated) VALUES(?,?,?,?,?) ON CONFLICT(router_id,mac) DO UPDATE SET data=excluded.data,updated=excluded.updated",
+            "INSERT INTO devices(id,router_id,mac,data,updated,visibility) VALUES(?,?,?,?,?,'hide') ON CONFLICT(router_id,mac) DO UPDATE SET data=excluded.data,updated=excluded.updated",
             (did, row["id"], address, json.dumps(device), now),
         )
         sample = db.execute(
-            "SELECT at,state FROM samples WHERE device_id=? ORDER BY at DESC LIMIT 1",
+            "SELECT at,upload_bps,download_bps FROM traffic WHERE device_id=? ORDER BY at DESC LIMIT 1",
             (did,),
         ).fetchone()
-        if (
-            not sample
-            or now - sample["at"] >= 300
-            or sample["state"] != device["state"]
-        ):
+        online = device.get("state") == "healthy"
+        if not sample or now - sample["at"] >= 60:
             db.execute(
-                "INSERT OR IGNORE INTO samples VALUES(?,?,?)",
-                (did, now, device["state"]),
+                "INSERT OR IGNORE INTO traffic(device_id,at,upload_bps,download_bps,state) VALUES(?,?,?,?,?)",
+                (
+                    did,
+                    now,
+                    device.get("upload_bps") if online else None,
+                    device.get("download_bps") if online else None,
+                    device["state"],
+                ),
             )
     data = {k: v for k, v in data.items() if k != "devices"}
     data.update(state="healthy", error=None)
@@ -204,7 +230,7 @@ def sync(db, row, data, now):
         "UPDATE routers SET snapshot=?,checked=? WHERE id=?",
         (json.dumps(data), now, row["id"]),
     )
-    db.execute("DELETE FROM samples WHERE at<?", (now - 30 * 86400,))
+    db.execute("DELETE FROM traffic WHERE at<?", (now - 7200,))
     return True
 
 
@@ -234,7 +260,6 @@ def status(db, private=False):
     devices = []
     for row in db.execute("SELECT * FROM devices ORDER BY rowid"):
         device = json.loads(row["data"])
-        last_state = device.get("state")
         if index[row["router_id"]]["state"] != "healthy":
             device["state"] = "unknown"
         device.update(
@@ -248,21 +273,18 @@ def status(db, private=False):
             notify_offline=bool(row["notify_offline"]),
             updated_at=row["updated"],
         )
-        visible = row["visibility"] == "show" or (
-            row["visibility"] == "auto"
-            and (last_state == "healthy" or row["notify_offline"])
-        )
-        if not private and (row["visibility"] == "hide" or not visible):
+        if not private and row["visibility"] != "show":
             continue
-        history = db.execute(
-            "SELECT at,state FROM samples WHERE device_id=? AND at>=? ORDER BY at DESC LIMIT 60",
-            (row["id"], now - 18000),
-        ).fetchall()
-        device["history"] = [dict(r) for r in reversed(history)]
         if private:
             device["custom_name"] = row["name"]
             device["custom_group"] = row["group_name"]
             device["notes"] = row["notes"]
+        else:
+            history = db.execute(
+                "SELECT at,upload_bps,download_bps,state FROM traffic WHERE device_id=? AND at>=? ORDER BY at DESC LIMIT 120",
+                (row["id"], now - 7200),
+            ).fetchall()
+            device["traffic"] = [dict(r) for r in reversed(history)]
         devices.append(device)
     counts = db.execute("SELECT data,router_id FROM devices").fetchall()
     for router in routers:
@@ -296,7 +318,57 @@ def status(db, private=False):
             "unknown": len(counts) - online - offline,
         },
         "brands": BRANDS,
+        "speedtest": speedtest_status(db),
     }
+
+
+def speedtest_status(db):
+    enabled = os.environ.get("SPEEDTEST_ENABLED", "false").lower() == "true"
+    latest = db.execute(
+        "SELECT * FROM speedtests ORDER BY started DESC LIMIT 1"
+    ).fetchone()
+    good = db.execute(
+        "SELECT * FROM speedtests WHERE state='healthy' ORDER BY started DESC LIMIT 1"
+    ).fetchone()
+    return {
+        "enabled": enabled,
+        "timezone": os.environ.get("SPEEDTEST_TIMEZONE", "Asia/Shanghai"),
+        "state": latest["state"] if latest else "pending",
+        "attempted_at": latest["started"] if latest else None,
+        "checked_at": good["finished"] if good else None,
+        **(json.loads(good["result"]) if good else {}),
+    }
+
+
+def speedtest_worker():
+    while True:
+        now = time.time()
+        day = speedtest.due_day(
+            now, os.environ.get("SPEEDTEST_TIMEZONE", "Asia/Shanghai")
+        )
+        claimed = False
+        if day:
+            with LOCK, connect() as db:
+                claimed = (
+                    db.execute(
+                        "INSERT OR IGNORE INTO speedtests(day,started,state) VALUES(?,?,'running')",
+                        (day, now),
+                    ).rowcount
+                    > 0
+                )
+        if claimed:
+            state, result = "healthy", {}
+            try:
+                result = speedtest.run(DATA / "speedtest")
+            except Exception:  # noqa: BLE001
+                state = "error"
+                logger.warning("Scheduled speed test failed")
+            with LOCK, connect() as db:
+                db.execute(
+                    "UPDATE speedtests SET finished=?,state=?,result=? WHERE day=?",
+                    (time.time(), state, json.dumps(result), day),
+                )
+        threading.Event().wait(15)
 
 
 def worker():
@@ -507,9 +579,9 @@ class Handler(BaseHTTPRequestHandler):
                     if path.startswith("/api/devices/") and method == "PATCH":
                         did = path.rsplit("/", 1)[1]
                         body = self.body()
-                        visibility = body.get("visibility", "auto")
+                        visibility = body.get("visibility", "hide")
                         if (
-                            visibility not in ("auto", "show", "hide")
+                            visibility not in ("show", "hide")
                             or type(body.get("notify_offline", False)) is not bool
                         ):
                             raise ValueError("设备显示设置无效")
@@ -569,8 +641,14 @@ if __name__ == "__main__":
     os.umask(0o077)
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")
     init_db()
+    if os.environ.get("SPEEDTEST_ENABLED", "false").lower() == "true":
+        speedtest.due_day(
+            time.time(), os.environ.get("SPEEDTEST_TIMEZONE", "Asia/Shanghai")
+        )
     if os.environ.get("COLLECTOR_ENABLED", "true").lower() == "true":
         threading.Thread(target=worker, daemon=True).start()
+    if os.environ.get("SPEEDTEST_ENABLED", "false").lower() == "true":
+        threading.Thread(target=speedtest_worker, daemon=True).start()
     ThreadingHTTPServer(
         (
             os.environ.get("BIND_ADDRESS", "127.0.0.1"),

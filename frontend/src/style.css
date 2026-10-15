@@ -1441,3 +1441,31 @@ dialog.security-dialog {
 .editor .home-notify { margin-top: 25px; padding: 10px 12px; min-height: 44px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-bg); }
 @media (max-width: 767px) { .editor .home-notify { margin-top: 0; } }
 @media (prefers-reduced-motion: reduce) { .home-switch input, .home-switch input::before { transition: none; } }
+
+.editor .home-setting { padding: 10px 12px; min-height: 44px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-bg); margin-top: 0; }
+.home-display-settings { margin-top: 8px; }
+@media (max-width: 767px) { .device-sidebar { height: 270px; } }
+.traffic-chart { width: 100%; }
+.traffic-heading,.traffic-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--color-muted); font-size: 10px; }
+.traffic-heading { margin-bottom: 4px; }
+.traffic-heading small { font-size: 10px; }
+.traffic-legend { display: flex; gap: 14px; }
+.traffic-legend span::before { content: ""; display: inline-block; width: 10px; height: 2px; background: currentColor; margin: 0 5px 3px 0; }
+.traffic-up { color: var(--color-green); fill: var(--color-green); }
+.traffic-down { color: var(--color-green); fill: var(--color-green); opacity: .65; }
+.traffic-line.traffic-down { stroke-dasharray: 4 3; }
+.traffic-offline { color: var(--color-gray); fill: var(--color-gray); }
+.traffic-chart svg { display: block; width: 100%; height: 98px; overflow: visible; }
+.traffic-line { stroke: currentColor; stroke-width: 1.7; fill: none; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.traffic-grid { stroke: var(--color-line); stroke-width: 1; stroke-dasharray: 3 5; fill: none; vector-effect: non-scaling-stroke; }
+.traffic-empty { height: 98px; display: grid; place-items: center; color: var(--color-muted); font-size: 12px; }
+.traffic-footer { margin-top: 3px; font-variant-numeric: tabular-nums; }
+
+.home-speedtest { border-top: 1px solid var(--color-line); margin-top: 20px; padding-top: 16px; }
+.home-speedtest-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px 16px; font-size: 13px; }
+.home-speedtest-heading small { font-size: 11px; color: var(--color-muted); font-weight: 400; }
+.home-speedtest-heading span small { margin-left: 8px; }
+.home-speedtest-values { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 16px; margin-top: 12px; }
+.home-speedtest-values small { display: block; font-size: 11px; color: var(--color-muted); margin-bottom: 4px; }
+.home-speedtest-values strong { font-size: 18px; }
+@media (max-width: 414px) { .home-speedtest-values { gap: 8px; } .home-speedtest-values strong { font-size: 15px; } }

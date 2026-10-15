@@ -110,7 +110,7 @@ class StorageTests(unittest.TestCase):
         with app.connect() as db:
             self.sync(db, self.now)
             db.execute(
-                "UPDATE devices SET name='custom',group_name='room',notes='private'"
+                "UPDATE devices SET name='custom',group_name='room',notes='private',visibility='show'"
             )
             self.sync(db, self.now + 30)
             public = app.status(db)
@@ -118,23 +118,63 @@ class StorageTests(unittest.TestCase):
             self.assertEqual(public["routers"][0]["online_count"], 1)
             self.assertNotIn("secret", json.dumps(public))
             self.assertNotIn("private", json.dumps(public))
-            self.assertEqual(len(public["devices"][0]["history"]), 1)
+            self.assertEqual(len(public["devices"][0]["traffic"]), 1)
 
-    def test_history_is_not_rewritten_and_missing_device_is_offline(self):
+    def test_traffic_is_not_rewritten_and_missing_device_is_offline(self):
         with app.connect() as db:
             self.sync(db, self.now)
             self.sync(db, self.now + 60, {"devices": [], "model": "ZTE"})
-            points = db.execute("SELECT at,state FROM samples ORDER BY at").fetchall()
+            points = db.execute(
+                "SELECT at,upload_bps FROM traffic ORDER BY at"
+            ).fetchall()
             self.assertEqual(
-                [(r["at"], r["state"]) for r in points],
-                [(self.now, "healthy"), (self.now + 60, "offline")],
+                [(r["at"], r["upload_bps"]) for r in points],
+                [(self.now, 10), (self.now + 60, None)],
             )
             self.assertEqual(app.status(db)["totals"]["offline"], 1)
+
+    def test_new_devices_require_explicit_visibility(self):
+        with app.connect() as db:
+            self.sync(db, self.now)
+            self.assertEqual(app.status(db)["devices"], [])
+            self.assertEqual(len(app.status(db, True)["devices"]), 1)
+            db.execute("UPDATE devices SET visibility='show'")
+            self.assertEqual(len(app.status(db)["devices"]), 1)
+            self.sync(db, self.now + 70)
+            self.assertEqual(len(app.status(db)["devices"]), 1)
+
+    def test_upgrade_keeps_previously_visible_devices_and_legacy_samples(self):
+        with app.connect() as db:
+            self.sync(db, self.now)
+            db.execute("UPDATE devices SET visibility='auto'")
+            db.execute(
+                "CREATE TABLE samples(device_id TEXT,at REAL,state TEXT)"
+            )
+            db.execute(
+                "INSERT INTO samples SELECT id,?, 'healthy' FROM devices",
+                (self.now,),
+            )
+        app.init_db()
+        with app.connect() as db:
+            self.assertEqual(
+                db.execute("SELECT visibility FROM devices").fetchone()[0], "show"
+            )
+            self.assertEqual(len(app.status(db)["devices"]), 1)
+            self.assertEqual(db.execute("SELECT COUNT(*) FROM samples").fetchone()[0], 1)
+            db.execute(
+                "UPDATE devices SET visibility='auto',data=?",
+                (json.dumps({"state": "offline"}),),
+            )
+        app.init_db()
+        with app.connect() as db:
+            self.assertEqual(
+                db.execute("SELECT visibility FROM devices").fetchone()[0], "hide"
+            )
 
     def test_router_failure_means_unknown_not_offline(self):
         with app.connect() as db:
             self.sync(db, self.now - 200)
-            public = app.status(db)
+            public = app.status(db, True)
             self.assertEqual(public["devices"][0]["state"], "unknown")
             self.assertEqual(public["totals"]["offline"], 0)
             self.assertEqual(public["totals"]["unknown"], 1)

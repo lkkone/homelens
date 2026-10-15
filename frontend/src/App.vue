@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, watch } from "vue";
-import HeartbeatBar from "./HeartbeatBar.vue";
+import TrafficChart from "./TrafficChart.vue";
 import { createFaviconBadge } from "./faviconBadge.js";
 const admin = location.pathname === "/admin";
 const authenticated = ref(false), loading = ref(true), busy = ref(false), failure = ref(""), error = ref(""), notice = ref("");
@@ -10,7 +10,7 @@ const tab = ref("devices"), selectedId = ref(null), query = ref(""), onlyOnline 
 const labels = {healthy:"在线",offline:"离线",unknown:"未知",pending:"等待采集"};
 const routerBlank = () => ({name:"",address:"",brand:"zte",username:"admin",password:""});
 const routerForm = ref(routerBlank());
-const deviceForm = ref({name:"",group:"",notes:"",visibility:"auto",notify_offline:false});
+const deviceForm = ref({name:"",group:"",notes:"",visibility:"hide",notify_offline:false});
 const selected = computed(() => (tab.value === "routers" ? data.value.routers : data.value.devices).find(d=>d.id===selectedId.value));
 const filtered = computed(() => {
  const list = tab.value === "routers" ? data.value.routers : data.value.devices;
@@ -41,7 +41,7 @@ async function refresh(){
 function select(d){
  selectedId.value=d?.id||null;error.value="";
  if(tab.value==="routers")routerForm.value=d?{...routerBlank(),...d.config,name:d.custom_name||"",password:""}:routerBlank();
- else if(d)deviceForm.value={name:d.custom_name||"",group:d.custom_group||"",notes:d.notes||"",visibility:d.visibility,notify_offline:d.notify_offline};
+ else if(d)deviceForm.value={name:d.custom_name||"",group:d.custom_group||"",notes:d.notes||"",visibility:d.visibility==='show'?'show':'hide',notify_offline:d.notify_offline};
 }
 const previousSelection = {devices:null,routers:null};
 function switchTab(value){
@@ -100,7 +100,7 @@ onUnmounted(()=>{clearInterval(timer);badge.dispose();window.removeEventListener
    <section v-else-if="selected" class="editor panel">
     <div class="editor-heading"><h2>{{selected.name}}</h2><span class="state" :class="selected.state">{{labels[selected.state]}}</span></div>
     <form @submit.prevent="save"><h3>显示信息</h3><div class="form-grid"><label>自定义名称<input v-model="deviceForm.name" :placeholder="selected.automatic_name||'留空自动获取'" maxlength="200"/></label><label>房间 / 分组<input v-model="deviceForm.group" placeholder="家庭设备" maxlength="200"/></label></div><label>备注<input v-model="deviceForm.notes" placeholder="仅在管理后台显示" maxlength="1000"/></label>
-     <div class="form-grid"><label>展示方式<select v-model="deviceForm.visibility"><option value="auto">自动 · 仅显示在线设备</option><option value="show">始终显示</option><option value="hide">隐藏</option></select></label><label class="home-switch home-notify"><span>离线时提醒</span><input v-model="deviceForm.notify_offline" type="checkbox" role="switch"/></label></div>
+     <div class="form-grid home-display-settings"><label class="home-switch home-setting"><span>是否展示</span><input v-model="deviceForm.visibility" type="checkbox" role="switch" true-value="show" false-value="hide"/></label><label class="home-switch home-setting"><span>离线时提醒</span><input v-model="deviceForm.notify_offline" type="checkbox" role="switch"/></label></div>
      <h3>自动获取的信息</h3><dl class="home-device-detail"><div><dt>IP 地址</dt><dd>{{selected.ip||'—'}}</dd></div><div><dt>MAC 地址</dt><dd>{{selected.mac}}</dd></div><div><dt>设备品牌 / 型号</dt><dd>{{[selected.brand,selected.model].filter(Boolean).join(' · ')||'未识别'}}</dd></div><div><dt>连接方式</dt><dd>{{selected.connection||'—'}}</dd></div><div><dt>信号强度</dt><dd>{{selected.signal!=null?selected.signal+' dBm':'—'}}</dd></div><div><dt>接入节点</dt><dd>{{selected.ap||selected.router_name}}</dd></div><div><dt>累计上传</dt><dd>{{bytes(selected.sent_bytes)}}</dd></div><div><dt>累计下载</dt><dd>{{bytes(selected.received_bytes)}}</dd></div></dl>
      <p class="form-error" role="alert">{{error}}</p><div class="actions"><span></span><button class="btn primary" :disabled="busy">{{busy?'正在保存…':'保存'}}</button></div>
     </form>
@@ -111,10 +111,14 @@ onUnmounted(()=>{clearInterval(timer);badge.dispose();window.removeEventListener
    <section v-if="!loading&&!data.routers.length" class="empty panel"><p>接入路由器后自动发现家庭设备。</p><a href="/admin">前往管理后台</a></section>
    <section v-for="r in data.routers" :key="r.id" class="home-network panel" :class="r.state"><div class="device-name-row"><span class="status-dot"></span><strong>{{r.name}}</strong><span class="tag">{{r.model||'等待识别'}}</span><small class="home-state">{{r.state!=='healthy'?labels[r.state]:r.wan_state==='offline'?'外网不可用':'外网正常'}}</small><small v-if="r.error" class="home-error">{{r.error}}</small></div>
     <div class="home-network-values"><div><small>在线设备</small><strong>{{r.state==='healthy'?r.online_count:'—'}}<em> 台</em></strong></div><div><small>网络节点</small><strong>{{r.nodes?.length??'—'}}<em> 个</em></strong></div><div><small>当前上传</small><strong>{{r.state==='healthy'?rate(r.upload_bps):'—'}}</strong></div><div><small>当前下载</small><strong>{{r.state==='healthy'?rate(r.download_bps):'—'}}</strong></div></div>
+    <div v-if="r.id===data.routers[0]?.id&&data.speedtest?.enabled" class="home-speedtest">
+     <div class="home-speedtest-heading"><span>宽带测速 <small>每日 00:00 · {{data.speedtest.timezone}}</small></span><small>{{data.speedtest.state==='running'?'正在测速…':data.speedtest.state==='error'?`最近一次测速失败${data.speedtest.checked_at?' · 上次成功 '+time(data.speedtest.checked_at):''}`:data.speedtest.checked_at?time(data.speedtest.checked_at):'等待首次午夜测速'}}</small></div>
+     <div class="home-speedtest-values"><div><small>下载速度</small><strong>{{rate(data.speedtest.download_bps)}}</strong></div><div><small>上传速度</small><strong>{{rate(data.speedtest.upload_bps)}}</strong></div><div><small>网络延迟</small><strong>{{data.speedtest.latency_ms!=null?data.speedtest.latency_ms.toFixed(1)+' ms':'—'}}</strong></div></div>
+    </div>
    </section>
    <section v-for="g in groups" :key="g.name" class="group"><h2>{{g.name}}</h2><div class="device-list panel"><article v-for="d in g.devices" :key="d.id" class="device home-device" :class="d.state">
     <div class="home-summary"><div class="device-name-row"><span class="status-dot"></span><strong class="device-name">{{d.name}}</strong><span class="tag">{{d.connection}}</span><small class="home-state">{{labels[d.state]}}</small></div><div class="home-values"><div><small>IP 地址</small><strong>{{d.ip||'—'}}</strong></div><div><small>MAC 地址</small><strong class="home-mac">{{d.mac}}</strong></div><div><small>信号</small><strong>{{d.signal!=null?d.signal+' dBm':d.connection==='有线'?'有线连接':'—'}}</strong></div><div><small>当前上传</small><strong>{{d.state==='healthy'?rate(d.upload_bps):'—'}}</strong></div><div><small>当前下载</small><strong>{{d.state==='healthy'?rate(d.download_bps):'—'}}</strong></div><div><small>接入节点</small><strong>{{d.ap||d.router_name}}</strong></div></div><p class="last-seen">{{[d.brand,d.model].filter(Boolean).join(' · ')}}<span v-if="d.brand||d.model"> · </span>更新于 {{time(d.updated_at)}}</p></div>
-    <HeartbeatBar :history="d.history"/>
+    <TrafficChart :history="d.traffic"/>
    </article></div></section>
   </template>
  </main><div v-if="notice" class="notice" role="status">{{notice}}</div>
