@@ -70,7 +70,7 @@ def init_db():
         CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY,value TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS sessions(hash TEXT PRIMARY KEY,expires REAL NOT NULL);
         CREATE TABLE IF NOT EXISTS routers(id TEXT PRIMARY KEY,name TEXT NOT NULL,config TEXT NOT NULL,snapshot TEXT NOT NULL DEFAULT '{}',checked REAL,generation INTEGER NOT NULL DEFAULT 1);
-        CREATE TABLE IF NOT EXISTS devices(id TEXT PRIMARY KEY,router_id TEXT NOT NULL REFERENCES routers(id) ON DELETE CASCADE,mac TEXT NOT NULL,data TEXT NOT NULL,name TEXT NOT NULL DEFAULT '',group_name TEXT NOT NULL DEFAULT '',notes TEXT NOT NULL DEFAULT '',visibility TEXT NOT NULL DEFAULT 'hide',notify_offline INTEGER NOT NULL DEFAULT 0,updated REAL NOT NULL,UNIQUE(router_id,mac));
+        CREATE TABLE IF NOT EXISTS devices(id TEXT PRIMARY KEY,router_id TEXT NOT NULL REFERENCES routers(id) ON DELETE CASCADE,mac TEXT NOT NULL,data TEXT NOT NULL,name TEXT NOT NULL DEFAULT '',group_name TEXT NOT NULL DEFAULT '',notes TEXT NOT NULL DEFAULT '',visibility TEXT NOT NULL DEFAULT 'hide',notify_offline INTEGER NOT NULL DEFAULT 0,allow_offline INTEGER NOT NULL DEFAULT 0,updated REAL NOT NULL,UNIQUE(router_id,mac));
         CREATE TABLE IF NOT EXISTS traffic(device_id TEXT NOT NULL REFERENCES devices(id) ON DELETE CASCADE,at REAL NOT NULL,upload_bps REAL,download_bps REAL,state TEXT NOT NULL DEFAULT 'healthy',PRIMARY KEY(device_id,at));
         CREATE TABLE IF NOT EXISTS speedtests(day TEXT PRIMARY KEY,started REAL NOT NULL,finished REAL,state TEXT NOT NULL,result TEXT NOT NULL DEFAULT '{}');
         """)
@@ -78,6 +78,8 @@ def init_db():
             db.execute(
                 "ALTER TABLE traffic ADD COLUMN state TEXT NOT NULL DEFAULT 'healthy'"
             )
+        if "allow_offline" not in {r["name"] for r in db.execute("PRAGMA table_info(devices)")}:
+            db.execute("ALTER TABLE devices ADD COLUMN allow_offline INTEGER NOT NULL DEFAULT 0")
         # Preserve the devices visible under the old automatic rule when moving
         # to explicit switches. Previously hidden/offline devices stay hidden.
         for device in db.execute(
@@ -270,6 +272,7 @@ def status(db, private=False):
             name=row["name"] or device.get("name") or row["mac"],
             group=row["group_name"] or "家庭设备",
             visibility=row["visibility"],
+            allow_offline=bool(row["allow_offline"]),
             notify_offline=bool(row["notify_offline"]),
             updated_at=row["updated"],
         )
@@ -583,16 +586,18 @@ class Handler(BaseHTTPRequestHandler):
                         if (
                             visibility not in ("show", "hide")
                             or type(body.get("notify_offline", False)) is not bool
+                            or type(body.get("allow_offline", False)) is not bool
                         ):
                             raise ValueError("设备显示设置无效")
                         cursor = db.execute(
-                            "UPDATE devices SET name=?,group_name=?,notes=?,visibility=?,notify_offline=? WHERE id=?",
+                            "UPDATE devices SET name=?,group_name=?,notes=?,visibility=?,notify_offline=?,allow_offline=? WHERE id=?",
                             (
                                 text(body.get("name", "")),
                                 text(body.get("group", "")),
                                 text(body.get("notes", ""), 1000),
                                 visibility,
                                 int(body.get("notify_offline", False)),
+                                int(body.get("allow_offline", False)),
                                 did,
                             ),
                         )

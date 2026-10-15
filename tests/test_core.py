@@ -138,10 +138,19 @@ class StorageTests(unittest.TestCase):
             self.sync(db, self.now)
             self.assertEqual(app.status(db)["devices"], [])
             self.assertEqual(len(app.status(db, True)["devices"]), 1)
+            self.assertFalse(app.status(db, True)["devices"][0]["allow_offline"])
             db.execute("UPDATE devices SET visibility='show'")
             self.assertEqual(len(app.status(db)["devices"]), 1)
             self.sync(db, self.now + 70)
             self.assertEqual(len(app.status(db)["devices"]), 1)
+
+    def test_allow_offline_survives_poll(self):
+        with app.connect() as db:
+            self.sync(db, self.now)
+            db.execute("UPDATE devices SET visibility='show',allow_offline=1")
+            self.sync(db, self.now + 30)
+            public = app.status(db)
+            self.assertTrue(public["devices"][0]["allow_offline"])
 
     def test_upgrade_keeps_previously_visible_devices_and_legacy_samples(self):
         with app.connect() as db:

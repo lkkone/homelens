@@ -1443,7 +1443,8 @@ dialog.security-dialog {
 @media (prefers-reduced-motion: reduce) { .home-switch input, .home-switch input::before { transition: none; } }
 
 .editor .home-setting { padding: 10px 12px; min-height: 44px; border: 1px solid var(--color-line); border-radius: 8px; background: var(--color-bg); margin-top: 0; }
-.home-display-settings { margin-top: 8px; }
+.home-display-settings { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; margin-top: 8px; }
+@media (max-width: 767px) { .home-display-settings { gap: 8px; } }
 @media (max-width: 767px) { .device-sidebar { height: 270px; } }
 .traffic-chart { width: 100%; }
 .traffic-heading,.traffic-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; color: var(--color-muted); font-size: 10px; }
