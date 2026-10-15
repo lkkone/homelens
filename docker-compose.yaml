@@ -1,6 +1,6 @@
 services:
   homelens:
-    image: ${HOMELENS_IMAGE:-homelens:0.1.0-arm64}
+    image: ${HOMELENS_IMAGE:-homelens:0.2.4-arm64}
     container_name: home-homelens
     restart: unless-stopped
     env_file: .env
